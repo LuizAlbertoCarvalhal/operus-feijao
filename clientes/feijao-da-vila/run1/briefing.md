@@ -14,3 +14,10 @@
 | Sexta 03/04 | Instagram Feed | Feijao_da_Vila-2 |
 | Sábado 04/04 | Instagram Feed | Feijao_da_Vila-4 |
 | Domingo 05/04 | Instagram Feed | Feijao_da_Vila-62 |
+## Registro de publicações
+- Terça 31/03 — POST PENDENTE (confirmar se foi publicado)
+- Quarta 01/04 — ✅ PUBLICADO 08h56 — Feijao_da_Vila-9 — foco delivery iFood
+
+## Registro de publicações
+- Terça 31/03 — POST PENDENTE (confirmar se foi publicado)
+- Quarta 01/04 — ✅ PUBLICADO 08h56 — Feijao_da_Vila-9 — foco delivery iFood
