@@ -8,3 +8,4 @@
 - Localização: São João de Meriti, RJ
 - Carro-chefe: Feijoada
 - run1: 31/03 a 05/04/2026 — Executivo de Frango
+- WhatsApp: (21) 3754-1120
