@@ -1,0 +1,438 @@
+{
+  "name": "Feijão da Vila — Conteúdo Diário",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 2-7"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Cron 10h (ter-dom)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prato, descricao, preco, canal, imagem_url FROM cardapio WHERE data = CURRENT_DATE AND ativo = true LIMIT 1;",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "PostgreSQL — Prato do Dia",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_POSTGRES_CREDENTIAL_ID",
+          "name": "TKIA02 PostgreSQL"
+        }
+      },
+      "notes": "CONFIGURAR: credencial PostgreSQL apontando para 192.168.31.10. Criar tabela cardapio com colunas: data DATE, prato TEXT, descricao TEXT, preco NUMERIC, canal TEXT (instagram|whatsapp|ambos)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.31.30:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"llama3.1:8b\",\n  \"prompt\": \"Você é o social media do restaurante Feijão da Vila, em São João de Meriti, RJ. Crie um post para redes sociais sobre o prato de hoje. Use tom descontraído e apetitoso. Não use hashtags em excesso. Inclua o preço se disponível.\\n\\nPrato: {{ $json.prato }}\\nDescrição: {{ $json.descricao }}\\nPreço: R$ {{ $json.preco }}\\n\\nGere apenas o texto do post, sem explicações.\",\n  \"stream\": false\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Ollama — Gerar Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Ollama rodando em TKIA01 (192.168.31.30:11434). Ajustar model conforme o que estiver disponível: llama3, mistral, etc."
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = JSON.parse($input.first().json.body || '{}');\nconst texto = response.response || 'Erro ao gerar post.';\nconst data = new Date().toISOString().split('T')[0];\nconst prato = $('PostgreSQL — Prato do Dia').first().json.prato || 'prato';\n\nreturn [{\n  json: {\n    texto,\n    data,\n    prato,\n    filename: `/home/l7/feijao/posts/${data}.txt`,\n    conteudo: `DATA: ${data}\\nPRATO: ${prato}\\n\\n${texto}\\n\\n---\\nStatus: PENDENTE APROVAÇÃO\\nGerado: ${new Date().toLocaleString('pt-BR')}\"\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Formatar Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.filename }}",
+        "dataPropertyName": "conteudo",
+        "encoding": "utf8",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Salvar Arquivo",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "notes": "Salva em /home/l7/feijao/posts/YYYY-MM-DD.txt para aprovação manual. Criar o diretório antes: mkdir -p /home/l7/feijao/posts"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/feijao-da-vila",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "2fa304790fd29c88609bb63012f5b0a410659a71fc3b8342ed7dea5717db7985"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"number\": \"5521968603611\",\n  \"text\": \"*Feijão da Vila — Aprovação de Post*\\n\\n📅 {{ $('Formatar Post').first().json.data }}\\n🍽️ {{ $('Formatar Post').first().json.prato }}\\n\\n{{ $('Formatar Post').first().json.texto }}\\n\\n---\\n✅ Aprovar: {{ $json.resumeUrl }}\\n❌ Rejeitar: {{ $json.resumeUrl }}?approved=false\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "WhatsApp — Enviar para Aprovação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "notes": "CONFIGURAR: Evolution API URL, apikey e número do responsável. O link de aprovação vem do nó Wait abaixo."
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "aprovacao-feijao"
+        }
+      },
+      "id": "a1b2c3d4-0007-0007-0007-000000000007",
+      "name": "Aguardar Aprovação",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "webhookId": "feijao-aprovacao-webhook",
+      "notes": "Pausa o workflow. Retoma quando o webhook for chamado. URL gerada automaticamente pelo n8n."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-approved",
+              "leftValue": "={{ $json.query.approved }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a1b2c3d4-0008-0008-0008-000000000008",
+      "name": "Aprovado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/feijao-da-vila",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "2fa304790fd29c88609bb63012f5b0a410659a71fc3b8342ed7dea5717db7985"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"number\": \"PLACEHOLDER_GRUPO_OU_BROADCAST_WHATSAPP\",\n  \"text\": \"{{ $('Formatar Post').first().json.texto }}\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0009-0009-0009-000000000009",
+      "name": "WhatsApp — Postar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -100
+      ],
+      "notes": "CONFIGURAR: número do grupo ou lista de transmissão do Feijão da Vila."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/PLACEHOLDER_INSTAGRAM_ACCOUNT_ID/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer PLACEHOLDER_INSTAGRAM_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "caption",
+              "value": "={{ $('Formatar Post').first().json.texto }}"
+            },
+            {
+              "name": "media_type",
+              "value": "IMAGE"
+            },
+            {
+              "name": "image_url",
+              "value": "={{ $('PostgreSQL — Prato do Dia').first().json.imagem_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0010-0010-0010-000000000010",
+      "name": "Instagram — Criar Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        100
+      ],
+      "notes": "CONFIGURAR: Instagram Business Account ID e Access Token via Meta Developer Console. A imagem do dia precisa estar acessível por URL pública."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/PLACEHOLDER_INSTAGRAM_ACCOUNT_ID/media_publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer PLACEHOLDER_INSTAGRAM_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0011-0011-0011-000000000011",
+      "name": "Instagram — Publicar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        100
+      ],
+      "notes": "Publica o container criado no passo anterior. Executar após Instagram — Criar Container."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Post rejeitado — apenas loga\nconst data = $('Formatar Post').first().json.data;\nconsole.log(`[${data}] Post rejeitado pelo responsável.`);\nreturn [{ json: { status: 'rejeitado', data } }];"
+      },
+      "id": "a1b2c3d4-0012-0012-0012-000000000012",
+      "name": "Registrar Rejeição",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Cron 10h (ter-dom)": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL — Prato do Dia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL — Prato do Dia": {
+      "main": [
+        [
+          {
+            "node": "Ollama — Gerar Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama — Gerar Post": {
+      "main": [
+        [
+          {
+            "node": "Formatar Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Post": {
+      "main": [
+        [
+          {
+            "node": "Salvar Arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Arquivo": {
+      "main": [
+        [
+          {
+            "node": "Aguardar Aprovação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar Aprovação": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp — Enviar para Aprovação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp — Enviar para Aprovação": {
+      "main": [
+        [
+          {
+            "node": "Aprovado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprovado?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp — Postar",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram — Criar Container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Rejeição",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram — Criar Container": {
+      "main": [
+        [
+          {
+            "node": "Instagram — Publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
